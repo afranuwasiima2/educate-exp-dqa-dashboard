@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educate! DQA Dashboard — Term 1, 2026</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.5; }
+        
+        /* Header & Nav */
+        .header { background: linear-gradient(135deg, #0f4c5c 0%, #028090 100%); color: white; padding: 1.5rem 3rem; display: flex; justify-content: space-between; align-items: center; }
+        .update-badge { background: #d97706; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+        .nav-bar { background: white; padding: 0 3rem; display: flex; gap: 2rem; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100; }
+        .nav-tab { padding: 1rem 0; color: #64748b; cursor: pointer; font-weight: 500; border-bottom: 3px solid transparent; }
+        .nav-tab.active { color: #028090; border-bottom-color: #028090; }
+
+        /* Filters */
+        .filter-bar { background: #f1f5f9; padding: 1rem 3rem; display: flex; gap: 1.5rem; border-bottom: 1px solid #e2e8f0; }
+        .filter-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .filter-group label { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        select { padding: 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; min-width: 160px; outline: none; background: white; }
+
+        /* Content Layout */
+        .container { padding: 2rem 3rem; max-width: 1600px; margin: 0 auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* Grid & Cards */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .kpi-value { font-size: 1.75rem; font-weight: 700; color: #0f4c5c; }
+        
+        /* Tables */
+        .table-container { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-top: 1rem; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { background: #f8fafc; text-align: left; padding: 1rem; color: #64748b; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        td { padding: 1rem; border-bottom: 1px solid #f1f5f9; }
+        .status-pill { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.7rem; }
+        .bg-red { background: #fee2e2; color: #991b1b; }
+        .bg-green { background: #dcfce7; color: #166534; }
+        .bg-yellow { background: #fef9c3; color: #854d0e; }
+
+        #funnelCanvas { max-height: 400px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Educate! DQA <span style="font-weight: 300;">| Live Performance Dashboard</span></h1>
+    <div id="statusBadge" class="update-badge">CONNECTING TO BIGQUERY...</div>
+</div>
+
+<div class="nav-bar">
+    <div class="nav-tab active" data-page="overview">Executive Overview</div>
+    <div class="nav-tab" data-page="compliance">School Compliance</div>
+    <div class="nav-tab" data-page="integrity">Data Integrity</div>
+    <div class="nav-tab" data-page="mentors">Mentor Performance</div>
+    <div class="nav-tab" data-page="cu">CU Analysis</div>
+    <div class="nav-tab" data-page="outliers">Outliers</div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group"><label>Region</label><select id="filterRegion"><option value="All">All Regions</option></select></div>
+    <div class="filter-group"><label>CU</label><select id="filterCU"><option value="All">All CUs</option></select></div>
+    <div class="filter-group"><label>Mentor</label><select id="filterMentor"><option value="All">All Mentors</option></select></div>
+</div>
+
+<div class="container">
+    
+    <div id="page-overview" class="page active">
+        <div class="kpi-grid">
+            <div class="card"><div class="label">Total Schools</div><div id="kpi-schools" class="kpi-value">0</div></div>
+            <div class="card"><div class="label">Total Scholars</div><div id="kpi-scholars" class="kpi-value">0</div></div>
+            <div class="card"><div class="label">Avg LEC Attendance</div><div id="kpi-lec" class="kpi-value">0</div></div>
+            <div class="card"><div class="label">Critical Issues</div><div id="kpi-issues" class="kpi-value" style="color:#dc2626">0</div></div>
+        </div>
+        <div class="card">
+            <h3>Scholar Funnel</h3>
+            <canvas id="funnelChart"></canvas>
+        </div>
+    </div>
+
+    <div id="page-compliance" class="page">
+        <h3>Compliance Tracking</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>School</th>
+                        <th>Mentor</th>
+                        <th>CU</th>
+                        <th>Awareness</th>
+                        <th>Recruitment</th>
+                        <th>LEC 1 Started</th>
+                    </tr>
+                </thead>
+                <tbody id="complianceBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="page-integrity" class="page">
+        <h3>Flags & Mismatches</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>School</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Severity</th>
+                    </tr>
+                </thead>
+                <tbody id="integrityBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="page-mentors" class="page">
+        <h3>Mentor Health Ranking</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mentor</th>
+                        <th>Schools Assigned</th>
+                        <th>Total Issues</th>
+                        <th>Last Activity Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="mentorBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="page-cu" class="page">
+        <h3>CU Performance Summary</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Community Unit</th>
+                        <th>Region</th>
+                        <th>Active Schools</th>
+                        <th>Total Scholars</th>
+                        <th>Avg Attendance</th>
+                    </tr>
+                </thead>
+                <tbody id="cuBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="page-outliers" class="page">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div>
+                <h3 style="color:#16a34a">Top 10 Performers (Recruitment)</h3>
+                <div class="table-container"><table id="topPerformers"></table></div>
+            </div>
+            <div>
+                <h3 style="color:#dc2626">Bottom 10 Performers (Recruitment)</h3>
+                <div class="table-container"><table id="bottomPerformers"></table></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxcUmTZ2MsP_mzWOw6--c_hyh_41adkZVZm5aRklmK4/exec";
+    
+    window.DASHBOARD_DATA = { activity_data: [] };
+    let chartInstance = null;
+
+    async function fetchData() {
+        const badge = document.getElementById('statusBadge');
+        try {
+            const response = await fetch(GAS_URL);
+            const data = await response.json();
+            window.DASHBOARD_DATA = data;
+            
+            initFilters();
+            renderAll();
+            
+            badge.textContent = "LIVE DATA CONNECTED";
+            badge.style.background = "#16a34a";
+        } catch (e) {
+            badge.textContent = "SYNC FAILED";
+            badge.style.background = "#dc2626";
+            console.error(e);
+        }
+    }
+
+    function initFilters() {
+        const data = window.DASHBOARD_DATA.activity_data;
+        const populate = (id, key) => {
+            const el = document.getElementById(id);
+            const vals = [...new Set(data.map(d => d[key]))].sort();
+            el.innerHTML = '<option value="All">All</option>';
+            vals.forEach(v => { if(v) el.innerHTML += `<option value="${v}">${v}</option>`; });
+        };
+        populate('filterRegion', 'region');
+        populate('filterCU', 'cu');
+        populate('filterMentor', 'mentor_name');
+    }
+
+    function renderAll() {
+        const reg = document.getElementById('filterRegion').value;
+        const cu = document.getElementById('filterCU').value;
+        const men = document.getElementById('filterMentor').value;
+
+        const filtered = window.DASHBOARD_DATA.activity_data.filter(d => 
+            (reg === 'All' || d.region === reg) &&
+            (cu === 'All' || d.cu === cu) &&
+            (men === 'All' || d.mentor_name === men)
+        );
+
+        updateOverview(filtered);
+        updateCompliance(filtered);
+        updateIntegrity(filtered);
+        updateMentors(filtered);
+        updateCUAnalysis(filtered);
+        updateOutliers(filtered);
+    }
+
+    function updateOverview(data) {
+        document.getElementById('kpi-schools').textContent = [...new Set(data.map(d => d.school_name))].length;
+        const scholars = data.reduce((a, b) => a + (Number(b.sl_total_scholars) || 0), 0);
+        document.getElementById('kpi-scholars').textContent = scholars.toLocaleString();
+        
+        const lecAvg = data.length ? (data.reduce((a, b) => a + (Number(b.lec1_attendance) || 0), 0) / data.length).toFixed(1) : 0;
+        document.getElementById('kpi-lec').textContent = lecAvg;
+
+        const ctx = document.getElementById('funnelChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        
+        const awareness = data.reduce((a, b) => a + (Number(b.s3_info_attendance || 0) + Number(b.s5_info_attendance || 0)), 0);
+        const lec1 = data.reduce((a, b) => a + (Number(b.lec1_attendance || 0)), 0);
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Awareness', 'Recruitment', 'LEC 1'],
+                datasets: [{
+                    data: [awareness, scholars, lec1],
+                    backgroundColor: ['#028090', '#0f4c5c', '#16a34a']
+                }]
+            },
+            options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+        });
+    }
+
+    function updateCompliance(data) {
+        const tbody = document.getElementById('complianceBody');
+        tbody.innerHTML = data.slice(0, 50).map(d => `
+            <tr>
+                <td>${d.school_name}</td>
+                <td>${d.mentor_name}</td>
+                <td>${d.cu}</td>
+                <td><span class="status-pill ${d.s3_info_attendance > 0 ? 'bg-green' : 'bg-red'}">${d.s3_info_attendance > 0 ? 'YES' : 'NO'}</span></td>
+                <td><span class="status-pill ${d.sl_total_scholars > 0 ? 'bg-green' : 'bg-red'}">${d.sl_total_scholars > 0 ? 'YES' : 'NO'}</span></td>
+                <td><span class="status-pill ${d.lec1_attendance > 0 ? 'bg-green' : 'bg-red'}">${d.lec1_attendance > 0 ? 'YES' : 'NO'}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function updateIntegrity(data) {
+        const tbody = document.getElementById('integrityBody');
+        let issues = [];
+        data.forEach(d => {
+            const m = Number(d.sl_male_scholars || 0);
+            const f = Number(d.sl_female_scholars || 0);
+            const t = Number(d.sl_total_scholars || 0);
+            if(t > 0 && (m + f) !== t) {
+                issues.push({ s: d.school_name, t: 'Gender Mismatch', d: `Sum (${m+f}) ≠ Total (${t})`, v: 'HIGH' });
+            }
+            if(t > 0 && (Number(d.lec1_attendance || 0) > t)) {
+                issues.push({ s: d.school_name, t: 'Attendance Break', d: 'LEC1 > Recruited', v: 'CRITICAL' });
+            }
+        });
+        document.getElementById('kpi-issues').textContent = issues.length;
+        tbody.innerHTML = issues.map(i => `
+            <tr><td>${i.s}</td><td>${i.t}</td><td>${i.d}</td><td><span class="status-pill bg-red">${i.v}</span></td></tr>
+        `).join('');
+    }
+
+    function updateMentors(data) {
+        const mentors = {};
+        data.forEach(d => {
+            if(!mentors[d.mentor_name]) mentors[d.mentor_name] = { name: d.mentor_name, schools: 0, issues: 0 };
+            mentors[d.mentor_name].schools++;
+        });
+        document.getElementById('mentorBody').innerHTML = Object.values(mentors).map(m => `
+            <tr><td>${m.name}</td><td>${m.schools}</td><td>-</td><td>-</td><td><span class="status-pill bg-green">ACTIVE</span></td></tr>
+        `).join('');
+    }
+
+    function updateCUAnalysis(data) {
+        const cus = {};
+        data.forEach(d => {
+            if(!cus[d.cu]) cus[d.cu] = { name: d.cu, reg: d.region, schools: 0, scholars: 0 };
+            cus[d.cu].schools++;
+            cus[d.cu].scholars += Number(d.sl_total_scholars || 0);
+        });
+        document.getElementById('cuBody').innerHTML = Object.values(cus).map(c => `
+            <tr><td>${c.name}</td><td>${c.reg}</td><td>${c.schools}</td><td>${c.scholars}</td><td>-</td></tr>
+        `).join('');
+    }
+
+    function updateOutliers(data) {
+        const sorted = [...data].sort((a,b) => (Number(b.sl_total_scholars)||0) - (Number(a.sl_total_scholars)||0));
+        const head = `<thead><tr><th>School</th><th>Total</th></tr></thead>`;
+        document.getElementById('topPerformers').innerHTML = head + sorted.slice(0, 10).map(d => `<tr><td>${d.school_name}</td><td>${d.sl_total_scholars}</td></tr>`).join('');
+        document.getElementById('bottomPerformers').innerHTML = head + sorted.reverse().slice(0, 10).map(d => `<tr><td>${d.school_name}</td><td>${d.sl_total_scholars}</td></tr>`).join('');
+    }
+
+    // Nav and Events
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.nav-tab, .page').forEach(el => el.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('page-' + tab.dataset.page).classList.add('active');
+        });
+    });
+
+    document.querySelectorAll('select').forEach(s => s.addEventListener('change', renderAll));
+
+    fetchData();
+</script>
+
+</body>
+</html>
