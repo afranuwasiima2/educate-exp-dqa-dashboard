@@ -171,7 +171,7 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxcUmTZ2MsP_mzWOw6--c_hyh_41adkZVZm5aRklmK4/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwcmZtdNFAp65wMngNQUO6IvVFrfQEoxYqDedp_pcBUKGsjQPZO8rivjoexjBA7cjZdBg/exec";
     
     window.DASHBOARD_DATA = { activity_data: [] };
     let chartInstance = null;
